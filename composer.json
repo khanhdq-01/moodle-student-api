@@ -6,10 +6,14 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "guzzlehttp/guzzle": "^7.2",
+        "guzzlehttp/guzzle": "^7.9",
         "laravel/framework": "^10.10",
+        "laravel/passport": "^12.3",
         "laravel/sanctum": "^3.3",
-        "laravel/tinker": "^2.8"
+        "laravel/tinker": "^2.8",
+        "nexmo/client": "^2.4",
+        "vonage/client": "^4.1",
+        "vonage/client-core": "^4.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
@@ -25,7 +29,10 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "files": [
+        "vendor/laravel/framework/src/Illuminate/Support/Facades/Log.php"
+    ]
     },
     "autoload-dev": {
         "psr-4": {
