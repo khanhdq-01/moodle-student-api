@@ -12,34 +12,75 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = 'mdl_user';
     protected $fillable = [
-        'name',
+        'id',
+        'auth',
+        'policyagreed',
+        'confirmed',
+        'deleted',
+        'mnethostid',
+        'suspended',
+        'username',
+        'password',
+        'idnumber',
+        'firstname',
+        'lastname',
+        'middlename',
         'email',
-        'password',
+        'emailstop',
+        'icq',
+        'skype',
+        'aim',
+        'phone1',
+        'phone2',
+        'institution',
+        'department',
+        'address',
+        'city',
+        'country',
+        'lang',
+        'calendartype',
+        'theme',
+        'timezone',
+        'firstaccess',
+        'lastaccess',
+        'lastlogin',
+        'currentlogin',
+        'lastip',
+        'secret',
+        'picture',
+        'url',
+        'description',
+        'descriptionformat',
+        'mailformat',
+        'maildigest',
+        'maildisplay',
+        'autosubscribe',
+        'timecreated',
+        'timemodified',
+        'trustbitmask',
+        'imagealt',
+        'lastnamephonetic',
+        'firstnamephonetic',
+        'alternatename',
+        'moodlenetprofile',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+
+    public function courses()
+    {
+        return $this->belongsToMany(Course::class, 'mdl_role_assignments', 'userid', 'contextid')
+            ->where('roleid', 5); // Role ID cho học viên
+    }
 
     /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
+     * Hàm lấy tên đầy đủ của người dùng
+     * 
+     * @return string
      */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
+    public function getFullnameAttribute()
+    {
+        return $this->firstname . ' ' . $this->lastname;
+    }
 }

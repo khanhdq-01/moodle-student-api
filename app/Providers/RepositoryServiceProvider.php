@@ -2,15 +2,14 @@
 
 namespace App\Providers;
 
-use App\Services\CourseService;
 use App\Repositories\CourseRepository;
 use Illuminate\Support\ServiceProvider;
 use App\Interfaces\CourseRepositoryInterface;
 
-class AppServiceProvider extends ServiceProvider
+class RepositoryServiceProvider extends ServiceProvider
 {
     /**
-     * Register any application services.
+     * Register services.
      */
     public function register(): void
     {
@@ -18,10 +17,10 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap any application services.
+     * Bootstrap services.
      */
     public function boot(): void
     {
-        //
+        $this->app->bind(CourseRepositoryInterface::class, CourseRepository::class);
     }
 }
