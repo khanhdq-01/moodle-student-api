@@ -46,54 +46,50 @@ class Course extends Model
         'enablecompletion',
         'completionnotify',
         'cacherev',
-
-
     ];
 
-    /**
-     * Quan hệ với giảng viên (roleid = 4 trong mdl_role_assignments)
-     */
+    // /**
+    //  * Quan hệ với giảng viên (roleid = 4 trong mdl_role_assignments)
+    //  */
     // public function teachers()
-    // 
+    // {
+
     //     return $this->belongsToMany(User::class, 'mdl_role_assignments', 'contextid', 'userid')
-    //         ->where('roleid', 3)  // Giảng viên có roleid = 3
-    //         ->join('mdl_context', 'mdl_context.id', '=', 'mdl_role_assignments.contextid')
-    //         ->where('mdl_context.instanceid', '=', $this->id) // Kết nối với khóa học hiện tại
-    //         ->where('mdl_context.contextlevel', '=', 10); // Contextlevel = 10 cho khóa học
+    //         ->where('roleid', 3);  // Giảng viên có roleid = 3
     // }
-    /**
-     * Quan hệ với trợ giảng (roleid = 3 trong mdl_role_assignments)
-     */
-    public function assistants()
-    {
-        return $this->belongsToMany(User::class, 'mdl_role_assignments', 'contextid', 'userid')
-            ->where('roleid', 4); // Role ID cho trợ giảng
-    }
+    // /**
+    //  * Quan hệ với trợ giảng (roleid = 3 trong mdl_role_assignments)
+    //  */
+    // public function assistants()
+    // {
+    //     return $this->belongsToMany(User::class, 'mdl_role_assignments', 'contextid', 'userid')
+    //         ->where('roleid', 4); // Role ID cho trợ giảng
+    // }
 
 
-    /**
-     * Quan hệ với học viên (roleid = 5 trong mdl_role_assignments)
-     */
-    public function students()
-    {
-        return $this->belongsToMany(User::class, 'mdl_role_assignments', 'contextid', 'userid')
-            ->where('roleid', 5); // Role ID cho học viên
-    }
+    // /**
+    //  * Quan hệ với học viên (roleid = 5 trong mdl_role_assignments)
+    //  */
+    // public function students()
+    // {
+    //     return $this->belongsToMany(User::class, 'mdl_role_assignments', 'contextid', 'userid')
+    //         ->where('roleid', 5); // Role ID cho học viên
+    // }
 
 
-    /**
-     * Quan hệ với các module trong khóa học
-     */
-    public function modules()
-    {
-        return $this->hasMany(CourseModule::class, 'course', 'id');
-    }
+    // /**
+    //  * Quan hệ với các module trong khóa học
+    //  */
+    // public function modules()
+    // {
+    //     return $this->hasMany(CourseModule::class, 'course', 'id');
+    // }
 
-    /**
-     * Trường custom fields của khóa học
-     */
-    public function customFields()
-    {
-        return $this->hasMany(CourseCustomField::class, 'instanceid', 'id');
-    }
+    // /**
+    //  * Trường custom fields của khóa học
+    //  */
+    // public function customFields()
+    // {
+    //     return $this->hasMany(CourseCustomField::class, 'instanceid', 'id');
+    // }
 }

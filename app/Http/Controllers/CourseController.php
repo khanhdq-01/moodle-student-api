@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Services\CourseService;
+use Log;
 use Illuminate\Http\Request;
+use App\Services\CourseService;
+use App\Http\Controllers\Controller;
 
 class CourseController extends Controller
 {
@@ -17,19 +18,30 @@ class CourseController extends Controller
 
     public function getAllCourses()
     {
-        $courses = $this->courseService->getAllCourses();
-        return response()->json($courses);
+
+        try {
+            $courses = $this->courseService->getAllCourses();
+            return response()->json($courses);
+        } catch (\Exception $e) {
+            // Ghi log lỗi (nếu cần)
+            // Log::error('Error fetching all courses: ' . $e->getMessage());
+
+            // Trả về thông báo lỗi người dùng có thể hiểu
+            return response()->json([
+                'error' => 'There was an error fetching courses. Please try again later.'
+            ], 500); // HTTP status code 500 - Internal Server Error
+        }
     }
 
-    public function getCoursesByStudentId()
-    {
-        $courses = $this->courseService->getCoursesByStudentId();
-        return response()->json($courses);
-    }
+    // public function getCoursesByStudentId($studentId)
+    // {
+    //     $courses = $this->courseService->getCoursesByStudentId($studentId);
+    //     return response()->json($courses);
+    // }
 
-    public function getAvailableCoursesForStudent()
-    {
-        $courses = $this->courseService->getAvailableCoursesForStudent();
-        return response()->json($courses);
-    }
+    // public function getAvailableCoursesForStudent()
+    // {
+    //     $courses = $this->courseService->getAvailableCoursesForStudent();
+    //     return response()->json($courses);
+    // }
 }
