@@ -21,20 +21,18 @@ class CourseService
     public function getAllCourses()
     {
         $courses = $this->courseRepository->getAllCourses();
-        $test = $courses;
-        dd(json_decode($test));
+        return $courses;
     }
 
-    // /**
-    //  * Lấy các khóa học của sinh viên
-    //  * 
-    //  */
-    // public function getCoursesByStudentId()
-    // {
-    //     $studentId = Auth::id();
-    //     $courses = $this->courseRepository->getCoursesByStudentId($studentId);
-    //     return $this->formatCourses($courses);
-    // }
+    /**
+     * Lấy các khóa học của sinh viên
+     * 
+     */
+    public function getCoursesByStudentId($studentId)
+    {
+        $courses = $this->courseRepository->getCoursesByStudentId($studentId);
+        return $courses;
+    }
 
 
     /**

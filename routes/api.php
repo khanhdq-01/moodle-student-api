@@ -24,8 +24,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::prefix('/')->group(function () {
     Route::get('courses', [CourseController::class, 'getAllCourses']);
-    Route::get('student-courses/{studentId}', [CourseController::class, 'getStudentCourses']);
-    Route::get('courses-for-enrollment/{studentId}', [CourseController::class, 'getAvailableCoursesForStudent']);
+    Route::get('student-courses/{studentId}', [CourseController::class, 'getCoursesByStudentId']);
+    // Route::get('courses-for-enrollment/{studentId}', [CourseController::class, 'getAvailableCoursesForStudent']);
 });
 
 // Route::middleware('auth:api')->group(function () {

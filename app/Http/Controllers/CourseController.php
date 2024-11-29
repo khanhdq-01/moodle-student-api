@@ -21,7 +21,7 @@ class CourseController extends Controller
 
         try {
             $courses = $this->courseService->getAllCourses();
-            return response()->json($courses);
+            return response()->json($courses, 200);
         } catch (\Exception $e) {
             // Ghi log lỗi (nếu cần)
             // Log::error('Error fetching all courses: ' . $e->getMessage());
@@ -33,11 +33,27 @@ class CourseController extends Controller
         }
     }
 
-    // public function getCoursesByStudentId($studentId)
-    // {
-    //     $courses = $this->courseService->getCoursesByStudentId($studentId);
-    //     return response()->json($courses);
-    // }
+    public function getCoursesByStudentId(Request $request)
+    {
+
+        try {
+            $studentId = $request->input('studentId');
+
+            if (!is_numeric($studentId) || $studentId <= 0) {
+                return response()->json(['error' => 'Invalid student ID.'], 400);
+            }
+
+            $courses = $this->courseService->getCoursesByStudentId((int)$studentId);
+
+            if ($courses->isEmpty()) {
+                return response()->json(['message' => 'No courses found for this student.'], 404);
+            }
+
+            return response()->json($courses, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Could not fetch courses for the student.'], 500);
+        }
+    }
 
     // public function getAvailableCoursesForStudent()
     // {
