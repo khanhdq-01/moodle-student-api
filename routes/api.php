@@ -25,8 +25,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::prefix('/')->group(function () {
     Route::get('courses', [CourseController::class, 'getAllCourses']);
     Route::get('student-courses/{studentId}', [CourseController::class, 'getCoursesByStudentId']);
-    // Route::get('courses-for-enrollment/{studentId}', [CourseController::class, 'getAvailableCoursesForStudent']);
+    Route::get('student-courses-detail', [CourseController::class, 'getDetailCoursesForStudent']);
 });
+
 
 // Route::middleware('auth:api')->group(function () {
 //     Route::get('courses', [CourseController::class, 'getAllCourses']);  // Lấy tất cả khóa học

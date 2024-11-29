@@ -39,12 +39,10 @@ class CourseService
      * Lấy các khóa học có thể đăng ký nếu sinh viên chưa tham gia khóa học nào
      *
      */
-    // public function getAvailableCoursesForStudent()
-    // {
-    //     $studentId = Auth::id();
-    //     $courses = $this->courseRepository->getAvailableCoursesForStudent($studentId);
-    //     return $this->formatCourses($courses);
-    // }
-
-
+    public function getDetailCoursesForStudent($courseId, $studentId)
+    {
+        $courses = $this->courseRepository->getDetailCoursesForStudent($courseId, $studentId);
+        dd($courses);
+        return $courses;
+    }
 }

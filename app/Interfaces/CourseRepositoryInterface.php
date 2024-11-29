@@ -6,5 +6,5 @@ interface CourseRepositoryInterface
 {
     public function getAllCourses();
     public function getCoursesByStudentId($studentId);
-    public function getAvailableCoursesForStudent($studentId);
+    public function getDetailCoursesForStudent($courseId, $studentId);
 }

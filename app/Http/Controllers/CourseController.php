@@ -55,9 +55,58 @@ class CourseController extends Controller
         }
     }
 
-    // public function getAvailableCoursesForStudent()
-    // {
-    //     $courses = $this->courseService->getAvailableCoursesForStudent();
-    //     return response()->json($courses);
-    // }
+    public function getDetailCoursesForStudent(Request $request)
+    {
+        try {
+            // Lấy tham số đầu vào
+            $studentId = $request->input('studentId');
+            $courseId = $request->input('courseId');
+
+            // Kiểm tra đầu vào
+            if (!is_numeric($studentId) || $studentId <= 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid student ID. Student ID must be a positive number.'
+                ], 400);
+            }
+
+            if (!is_numeric($courseId) || $courseId <= 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid course ID. Course ID must be a positive number.'
+                ], 400);
+            }
+
+            // Gọi hàm từ service để lấy dữ liệu
+            $courses = $this->courseService->getDetailCoursesForStudent((int)$courseId, (int)$studentId);
+
+            // Kiểm tra dữ liệu trả về
+            if ($courses->isEmpty()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No courses found for this student in the specified course.'
+                ], 404);
+            }
+
+            // Trả về dữ liệu thành công
+            return response()->json([
+                'status' => 'success',
+                'data' => $courses
+            ], 200);
+        } catch (\Exception $e) {
+            // Ghi log lỗi nếu cần
+            // \Log::error('Error fetching course details for student', [
+            //     'studentId' => $studentId,
+            //     'courseId' => $courseId,
+            //     'error' => $e->getMessage()
+            // ]);
+
+            // Trả về lỗi chung
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred while fetching course details for the student.',
+                'error' => $e->getMessage() // Có thể ẩn dòng này trong môi trường production để bảo mật
+            ], 500);
+        }
+    }
 }
