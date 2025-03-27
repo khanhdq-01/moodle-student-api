@@ -24,6 +24,12 @@ class AuthService
                 'message' => 'Tài khoản không tồn tại hoặc đã bị khóa.',
             ];
         }
+        
+        $role = DB::table('mdl_role')
+              ->join('mdl_role_assignments', 'mdl_role.id', '=', 'mdl_role_assignments.roleid')
+              ->join('mdl_user', 'mdl_role_assignments.userid', '=', 'mdl_user.id')
+              ->where('mdl_user.username', $username)
+              ->value('mdl_role.id');
 
         $token = $user->createToken('login-token')->plainTextToken;
 
@@ -36,10 +42,48 @@ class AuthService
                 'firstname' => $user->firstname,
                 'lastname' => $user->lastname,
                 'email' => $user->email,
+                'role' => $role,
                 'token' => $token
             ]
         ];
     }
+
+    public function getUser($user)
+    {
+              // Nếu không có người dùng, trả về lỗi
+              if (!$user) {
+                return [
+                    'code' => 404,
+                    'message' => 'Người dùng không tìm thấy.',
+                ];
+            }
+        
+            // Lấy thông tin vai trò của người dùng
+            $role = DB::table('mdl_role')
+                ->join('mdl_role_assignments', 'mdl_role.id', '=', 'mdl_role_assignments.roleid')
+                ->join('mdl_user', 'mdl_role_assignments.userid', '=', 'mdl_user.id')
+                ->where('mdl_user.id', $user->id)
+                ->value('mdl_role.id');
+            
+            // Trả về thông tin người dùng và vai trò
+            return [
+                'code' => 200,
+                'message' => 'Thông tin người dùng.',
+                'data' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'firstname' => $user->firstname,
+                    'lastname' => $user->lastname,
+                    'email' => $user->email,
+                    'role' => $role,
+                    'phone1' => $user->phone1,
+                    'phone2' => $user->phone2,
+                    'city' => $user->city,
+                    'country' => $user->country,
+                ]
+            ];
+    }
+    
 
     public function logout($user)
     {

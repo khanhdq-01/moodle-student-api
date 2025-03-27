@@ -9,6 +9,9 @@ use App\Http\Controllers\MoodleQAController;
 use App\Http\Controllers\CourseInfoController;
 use App\Http\Controllers\MoodleGradeController;
 use App\Http\Controllers\MoodleAssignmentController;
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\ForumController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -31,8 +34,9 @@ Route::prefix('moodle')->group(function () {
      // Reset mật khẩu
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'student'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/get-user', [AuthController::class, 'getUser']); // lấy ra thông tin tài khoản đang đăng nhập
         Route::post('/change-password', [AuthController::class, 'changePassword']);
         // Cập nhật hồ sơ
         Route::put('/profile', [ProfileController::class, 'updateProfile']);
@@ -55,5 +59,16 @@ Route::prefix('moodle')->group(function () {
         //thông tin khóa học
         Route::get('/course/{course_id}', [CourseInfoController::class, 'getCourseInfo']);
 
+        Route::get('courses', [CourseController::class, 'getAllCourses']);
+        Route::get('student-courses/{studentId}', [CourseController::class, 'getCoursesByStudentId']);
+        Route::get('student-courses-detail', [CourseController::class, 'getDetailCoursesForStudent']);
+
+        //thông tin diễn đàn
+        Route::get('forums', [ForumController::class, 'getForums']); //thông tin diễn đàn mà học sinh đăng nhập
+        Route::get('/forums/{forum_id}/discussions', [ForumController::class, 'getDiscussions']);//lấy ra bài thảo luận trong diễn đàn
+        Route::post('/forums/{forum_id}/discussions', [ForumController::class, 'createDiscussion']); //tạo bài thảo luận mới trong diễn đàn
+        Route::get('/forums/{forum_id}/discussions/{discussion_id}', [ForumController::class, 'getDiscussionDetails']);//lấy ra bài thảo luận trong diễn đàn
+        Route::post('/forums/{forum_id}/discussions/{discussion_id}/comments', [ForumController::class, 'postComment']);//bình luận trong bài thảo luận trong diễn đàn
     });
+    
 });

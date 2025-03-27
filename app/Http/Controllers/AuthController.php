@@ -30,6 +30,12 @@ class AuthController extends Controller
         return response()->json($result, $result['code']);
     }
 
+    public function getUser(Request $request)
+    {
+        $result = $this->authService->getUser($request->user());
+        return response()->json($result, $result['code']);
+    }
+
     public function changePassword(ChangePasswordRequest $request)
     {
         $result = $this->authService->changePassword(
