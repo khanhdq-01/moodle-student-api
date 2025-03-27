@@ -24,6 +24,12 @@ class AuthService
                 'message' => 'Tài khoản không tồn tại hoặc đã bị khóa.',
             ];
         }
+        
+        $role = DB::table('mdl_role')
+              ->join('mdl_role_assignments', 'mdl_role.id', '=', 'mdl_role_assignments.roleid')
+              ->join('mdl_user', 'mdl_role_assignments.userid', '=', 'mdl_user.id')
+              ->where('mdl_user.username', $username)
+              ->value('mdl_role.id');
 
         $token = $user->createToken('login-token')->plainTextToken;
 
@@ -36,6 +42,7 @@ class AuthService
                 'firstname' => $user->firstname,
                 'lastname' => $user->lastname,
                 'email' => $user->email,
+                'role' => $role,
                 'token' => $token
             ]
         ];
