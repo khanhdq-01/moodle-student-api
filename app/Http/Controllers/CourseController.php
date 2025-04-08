@@ -33,12 +33,9 @@ class CourseController extends Controller
         }
     }
 
-    public function getCoursesByStudentId(Request $request)
+    public function getCoursesByStudentId($studentId)
     {
-
         try {
-            $studentId = $request->input('studentId');
-
             if (!is_numeric($studentId) || $studentId <= 0) {
                 return response()->json(['error' => 'Invalid student ID.'], 400);
             }
@@ -51,7 +48,10 @@ class CourseController extends Controller
 
             return response()->json($courses, 200);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Could not fetch courses for the student.'], 500);
+            return response()->json([
+                'error' => 'Could not fetch courses for the student.',
+                'message' => $e->getMessage(), // Thêm dòng này để biết lỗi thật sự
+            ], 500);
         }
     }
 
