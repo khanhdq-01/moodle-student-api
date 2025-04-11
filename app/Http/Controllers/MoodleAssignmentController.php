@@ -148,15 +148,48 @@ class MoodleAssignmentController extends Controller
         foreach ($questions as $question) {
             $question->answers = $answersByQuestion[$question->id] ?? [];
         }
-    
+        
+        foreach ($questions as $question) {
+            $question->answers = $answersByQuestion[$question->id] ?? [];
+        }
+        
+        // Nhóm câu hỏi theo quiz_name
+        $groupedQuestions = [];
+
+        foreach ($questions as $question) {
+            // Nếu chưa tồn tại quiz_name trong mảng, khởi tạo quiz_list rỗng
+            if (!isset($groupedQuestions[$question->quiz_name])) {
+                $groupedQuestions[$question->quiz_name] = [
+                    'quiz_name' => $question->quiz_name,
+                    'quiz_list' => []
+                ];
+            }
+
+            // Thêm câu hỏi vào quiz_list
+            $groupedQuestions[$question->quiz_name]['quiz_list'][] = [
+                'id' => $question->id,
+                'qtype' => $question->qtype,
+                'questiontext' => $question->questiontext,
+                'course' => $question->course,
+                'duedate' => $question->duedate,
+                'section_name' => $question->section_name,
+                'section' => $question->section,
+                'answers' => $question->answers
+            ];
+        }
+
+        // Reset key để trả về dạng mảng (array_values)
+        $groupedQuestions = array_values($groupedQuestions);
+
         return response()->json([
             'code' => 200,
             'message' => 'Danh sách bài tập và câu hỏi của user',
             'data' => [
                 'assignments' => $assignments,
-                'questions' => $questions
+                'questions' => $groupedQuestions
             ]
         ]);
+
     }
 
     public function getFile($contenthash)
