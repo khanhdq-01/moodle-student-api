@@ -36,6 +36,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 
 Route::middleware(['auth:sanctum', 'student'])->group(function () {
+    //user
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/get-user', [AuthController::class, 'getUser']); // lấy ra thông tin tài khoản đang đăng nhập
     Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -44,15 +45,21 @@ Route::middleware(['auth:sanctum', 'student'])->group(function () {
     // Thay đổi ngôn ngữ
     Route::patch('/language', [LanguageController::class, 'updateLanguage']);
 
-    // lấy Danh sách bài tập, trạng thái, section và file bài nộp
-    Route::get('/assignment-and-quiz', [MoodleAssignmentController::class, 'getAssignmentsAndQuestions']);
-    //download file đã nộp
-    Route::get('/download/{contenthash}', [MoodleAssignmentController::class, 'getFile']);
-    //submit bài tập
-    Route::post('/submit-assignment', [MoodleAssignmentController::class, 'submitAssignment']);
+   
+    Route::get('/assignment-and-quiz', [MoodleAssignmentController::class, 'getAssignmentsAndQuestions']); // lấy Danh sách bài tập, trạng thái, section và file bài nộp
+    Route::get('/quizzes', [MoodleAssignmentController::class, 'getUserQuizzes']);//lấy danh sách bài tập trắc nhiệm
+    Route::get('/quizzes/{course_id}', [MoodleAssignmentController::class, 'getCourseQuizzes']);//lấy danh sách bài tập trắc nhiệm theo id khóa học
+    Route::get('/quizzes-detail/{id}', [MoodleAssignmentController::class, 'getQuizQuestionsDetail']);//lấy chi tiết bài tập trắc nghiệm theo id bài tập
+    Route::get('/user-assign', [MoodleAssignmentController::class, 'getUserAssignments']);//lấy danh sách bài tập tự luận
+    Route::get('/user-assign/{course_id}', [MoodleAssignmentController::class, 'getCourseAssignments']);//lấy danh sách bài tập tự luận theo id khóa học
+    Route::get('/assign-detail/{id}', [MoodleAssignmentController::class, 'getAssignmentsDetail']);//lấy chi tiết bài tập tự luận theo id bài tập
+   
+    Route::get('/download/{contenthash}', [MoodleAssignmentController::class, 'getFile']);  //download file đã nộp
+    Route::post('/submit-assignment', [MoodleAssignmentController::class, 'submitAssignment']);//submit bài tập
 
     //lấy điểm 
-    Route::get('/grade', [MoodleGradeController::class, 'getStudentGrades']);
+    Route::get('/grades/assignments', [MoodleGradeController::class, 'getAssignmentGrades']); //lấy điểm bài tập tự luận
+    Route::get('/grades/quizzes', [MoodleGradeController::class, 'getQuizGrades']); //lấy điểm bài tập trắc nghiệm
 
     //lấy câu hỏi hỏi đáp trong thảo luận
     Route::get('/questions', [MoodleQAController::class, 'getQuestions']); //hỏi đáp trong thảo luận

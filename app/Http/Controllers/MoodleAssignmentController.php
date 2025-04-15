@@ -319,4 +319,383 @@ class MoodleAssignmentController extends Controller
             'files' => $savedFiles // Danh sách file đã lưu
         ]);
     }
+    public function getUserQuizzes(Request $request)
+    {
+        $user = $request->user();
+        $moodleUser = User::where('username', $user->username)->first();
+        if (!$moodleUser) {
+            return response()->json(['message' => 'User not found in Moodle'], 404);
+        }
+
+        // Lấy các khóa học của user
+        $courses = DB::table('mdl_user_enrolments')
+            ->join('mdl_enrol', 'mdl_user_enrolments.enrolid', '=', 'mdl_enrol.id')
+            ->where('mdl_user_enrolments.userid', $moodleUser->id)
+            ->pluck('mdl_enrol.courseid')
+            ->toArray();
+
+        $quizzes = DB::table('mdl_quiz')
+            ->join('mdl_course_modules', 'mdl_quiz.id', '=', 'mdl_course_modules.instance')
+            ->join('mdl_course_sections', 'mdl_course_modules.section', '=', 'mdl_course_sections.id')
+            ->whereIn('mdl_quiz.course', $courses)
+            ->select(
+                'mdl_quiz.id',
+                'mdl_quiz.name',
+                'mdl_quiz.course as course_id',
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeopen), '%d/%m/%Y') as open_time"),
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeclose), '%d/%m/%Y') as close_time"),
+                'mdl_course_modules.section',
+                'mdl_course_sections.name as section_name'
+            )
+            ->get();
+
+        $quizIds = $quizzes->pluck('id')->toArray();
+
+        // Kiểm tra trạng thái làm bài
+        $attempts = DB::table('mdl_quiz_attempts')
+            ->whereIn('quiz', $quizIds)
+            ->where('userid', $moodleUser->id)
+            ->select('quiz', 'state') // state: 'finished' or 'inprogress'
+            ->get();
+
+        $attemptMap = [];
+        foreach ($attempts as $attempt) {
+            $attemptMap[$attempt->quiz] = $attempt->state === 'finished' ? 1 : 0;
+        }
+
+        // Gán trạng thái vào từng bài
+        foreach ($quizzes as $quiz) {
+            $quiz->status = $attemptMap[$quiz->id] ?? 0; // 0: unfinished, 1: finished
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Danh sách bài trắc nghiệm',
+            'data' => $quizzes
+        ]);
+    }
+
+    //lấy danh sách bài tập tự luận
+    public function getUserAssignments(Request $request)
+    {
+        $user = $request->user();
+        $moodleUser = User::where('username', $user->username)->first();
+        if (!$moodleUser) {
+            return response()->json(['message' => 'User not found in Moodle'], 404);
+        }
+    
+        // Lấy danh sách khóa học của user
+        $courses = DB::table('mdl_user_enrolments')
+            ->join('mdl_enrol', 'mdl_user_enrolments.enrolid', '=', 'mdl_enrol.id')
+            ->where('mdl_user_enrolments.userid', $moodleUser->id)
+            ->pluck('mdl_enrol.courseid')
+            ->toArray();
+    
+        // Lấy danh sách bài tập
+        $assignments = DB::table('mdl_assign')
+            ->join('mdl_course_modules', 'mdl_assign.id', '=', 'mdl_course_modules.instance')
+            ->join('mdl_course_sections', 'mdl_course_modules.section', '=', 'mdl_course_sections.id')
+            ->whereIn('mdl_assign.course', $courses)
+            ->select(
+                'mdl_assign.id',
+                'mdl_assign.name',
+                'mdl_assign.course',
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_assign.duedate), '%d/%m/%Y') as duedate"),
+                'mdl_course_modules.section',
+                'mdl_course_sections.name as section_name'
+            )
+            ->get();
+    
+        $assignmentIds = $assignments->pluck('id')->toArray();
+    
+        // Lấy các bài nộp của user
+        $submissions = DB::table('mdl_assign_submission')
+            ->whereIn('assignment', $assignmentIds)
+            ->where('userid', $moodleUser->id)
+            ->get();
+    
+        $submissionMap = $submissions->keyBy('assignment');
+    
+        // Lấy nội dung text trả lời (onlinetext)
+        $textSubmissions = DB::table('mdl_assignsubmission_onlinetext')
+            ->whereIn('submission', $submissions->pluck('id')->toArray())
+            ->get()
+            ->keyBy('submission');
+    
+        foreach ($assignments as $assignment) {
+            $assignment->status = 0; // Mặc định: chưa nộp
+            $assignment->text = '';
+    
+            if (isset($submissionMap[$assignment->id])) {
+                $submission = $submissionMap[$assignment->id];
+                $assignment->status = $submission->status === 'submitted' ? 1 : 0;
+                $assignment->text = data_get($textSubmissions, $submission->id . '.onlinetext', '');
+            }
+        }
+    
+        return response()->json([
+            'code' => 200,
+            'message' => 'Danh sách bài tự luận',
+            'data' => $assignments
+        ]);
+    }
+
+    public function getCourseAssignments($courseId, Request $request)
+    {
+        $user = $request->user();
+        $moodleUser = User::where('username', $user->username)->first();
+        if (!$moodleUser) {
+            return response()->json(['message' => 'User not found in Moodle'], 404);
+        }
+
+        // Lấy danh sách bài tập trong course cụ thể
+        $assignments = DB::table('mdl_assign')
+            ->join('mdl_course_modules', 'mdl_assign.id', '=', 'mdl_course_modules.instance')
+            ->join('mdl_course_sections', 'mdl_course_modules.section', '=', 'mdl_course_sections.id')
+            ->where('mdl_assign.course', $courseId)
+            ->select(
+                'mdl_assign.id',
+                'mdl_assign.name',
+                'mdl_assign.course',
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_assign.duedate), '%d/%m/%Y') as duedate"),
+                'mdl_course_modules.section',
+                'mdl_course_sections.name as section_name'
+            )
+            ->get();
+
+        $assignmentIds = $assignments->pluck('id')->toArray();
+
+        // Lấy các bài đã nộp của user
+        $submissions = DB::table('mdl_assign_submission')
+            ->whereIn('assignment', $assignmentIds)
+            ->where('userid', $moodleUser->id)
+            ->get();
+
+        $submissionMap = $submissions->keyBy('assignment');
+
+        // Lấy nội dung nộp bài dạng văn bản
+        $textSubmissions = DB::table('mdl_assignsubmission_onlinetext')
+            ->whereIn('submission', $submissions->pluck('id')->toArray())
+            ->get()
+            ->keyBy('submission');
+
+        foreach ($assignments as $assignment) {
+            $assignment->status = 0; // mặc định chưa nộp
+            $assignment->text = '';
+
+            if (isset($submissionMap[$assignment->id])) {
+                $submission = $submissionMap[$assignment->id];
+                $assignment->status = $submission->status === 'submitted' ? 1 : 0;
+                $assignment->text = data_get($textSubmissions, $submission->id . '.onlinetext', '');
+            }
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Danh sách bài tự luận theo khóa học',
+            'data' => $assignments
+        ]);
+    }
+
+    public function getCourseQuizzes(Request $request, $courseId)
+    {
+        $user = $request->user();
+        $moodleUser = User::where('username', $user->username)->first();
+
+        if (!$moodleUser) {
+            return response()->json(['message' => 'User not found in Moodle'], 404);
+        }
+
+        // Lấy danh sách bài trắc nghiệm của khóa học cụ thể
+        $quizzes = DB::table('mdl_quiz')
+            ->join('mdl_course_modules', function ($join) {
+                $join->on('mdl_quiz.id', '=', 'mdl_course_modules.instance')
+                    ->where('mdl_course_modules.module', '=', DB::table('mdl_modules')->where('name', 'quiz')->value('id'));
+            })
+            ->join('mdl_course_sections', 'mdl_course_modules.section', '=', 'mdl_course_sections.id')
+            ->where('mdl_quiz.course', $courseId)
+            ->select(
+                'mdl_quiz.id',
+                'mdl_quiz.name',
+                'mdl_quiz.course as course_id',
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeopen), '%d/%m/%Y') as open_time"),
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeclose), '%d/%m/%Y') as close_time"),
+                'mdl_course_modules.section',
+                'mdl_course_sections.name as section_name'
+            )
+            ->get();
+
+        $quizIds = $quizzes->pluck('id')->toArray();
+
+        // Trạng thái làm bài
+        $attempts = DB::table('mdl_quiz_attempts')
+            ->whereIn('quiz', $quizIds)
+            ->where('userid', $moodleUser->id)
+            ->select('quiz', 'state')
+            ->get();
+
+        $attemptMap = [];
+        foreach ($attempts as $attempt) {
+            $attemptMap[$attempt->quiz] = $attempt->state === 'finished' ? 1 : 0;
+        }
+
+        foreach ($quizzes as $quiz) {
+            $quiz->status = $attemptMap[$quiz->id] ?? 0;
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => 'Danh sách bài trắc nghiệm theo khóa học',
+            'data' => $quizzes
+        ]);
+    }
+    public function getQuizQuestionsDetail($id)
+    {
+        // Kiểm tra quiz tồn tại
+        $quiz = DB::table('mdl_quiz')->where('id', $id)->first();
+    
+        if (!$quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
+    
+        // Lấy danh sách câu hỏi và đáp án từ quiz
+        $rawQuestions = DB::table('mdl_quiz_slots')
+            ->join('mdl_question as q', 'mdl_quiz_slots.questionid', '=', 'q.id')
+            ->leftJoin('mdl_question_answers as a', 'a.question', '=', 'q.id')
+            ->where('mdl_quiz_slots.quizid', $id)
+            ->select(
+                'mdl_quiz_slots.slot',
+                'q.id as question_id',
+                'q.name as questionname',
+                'q.qtype',
+                'q.questiontext',
+                'q.defaultmark',
+                'a.id as answer_id',
+                'a.answer',
+                'a.fraction'
+            )
+            ->orderBy('mdl_quiz_slots.slot')
+            ->get();
+    
+        // Nhóm câu hỏi theo slot
+        $grouped = $rawQuestions->groupBy('slot');
+    
+        $questions = [];
+    
+        foreach ($grouped as $slot => $items) {
+            $first = $items->first();
+            $answers = $items->filter(fn($ans) => $ans->answer_id !== null)->map(function ($ans) {
+                return [
+                    'answer_id' => $ans->answer_id,
+                    'answer' => $ans->answer,
+                    'is_correct' => floatval($ans->fraction) === 1.0
+                ];
+            })->values();
+    
+            $questions[] = [
+                'slot' => $slot,
+                'question_id' => $first->question_id,
+                'questionname' => $first->questionname,
+                'qtype' => $first->qtype,
+                'questiontext' => $first->questiontext,
+                'defaultmark' => $first->defaultmark,
+                'answers' => $answers
+            ];
+        }
+    
+        return response()->json([
+            'code' => 200,
+            'message' => 'Danh sách câu hỏi theo bài trắc nghiệm',
+            'quiz' => [
+                'id' => $quiz->id,
+                'name' => $quiz->name
+            ],
+            'questions' => $questions
+        ]);
+    }
+
+    public function getAssignmentsDetail($id, Request $request)
+    {
+        $user = $request->user();
+        $moodleUser = User::where('username', $user->username)->first();
+        if (!$moodleUser) {
+            return response()->json(['message' => 'User not found in Moodle'], 404);
+        }
+    
+        // Lấy thông tin bài tập
+        $assignment = DB::table('mdl_assign')
+            ->join('mdl_course_modules', 'mdl_assign.id', '=', 'mdl_course_modules.instance')
+            ->join('mdl_course_sections', 'mdl_course_modules.section', '=', 'mdl_course_sections.id')
+            ->where('mdl_assign.id', $id)
+            ->select(
+                'mdl_assign.id',
+                'mdl_assign.name',
+                'mdl_assign.course',
+                DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_assign.duedate), '%d/%m/%Y') as duedate"),
+                'mdl_course_modules.section',
+                'mdl_course_sections.name as section_name',
+                'mdl_course_modules.id as cmid'
+            )
+            ->first();
+    
+        if (!$assignment) {
+            return response()->json(['message' => 'Assignment not found'], 404);
+        }
+    
+        // Bài nộp của user
+        $submission = DB::table('mdl_assign_submission')
+            ->where('assignment', $id)
+            ->where('userid', $moodleUser->id)
+            ->first();
+    
+        $status = 0;
+        $onlinetext = '';
+        $studentFiles = [];
+    
+        if ($submission) {
+            $status = $submission->status === 'submitted' ? 1 : 0;
+    
+            // Nội dung onlinetext
+            $textSubmission = DB::table('mdl_assignsubmission_onlinetext')
+                ->where('submission', $submission->id)
+                ->first();
+    
+            $onlinetext = $textSubmission->onlinetext ?? '';
+    
+            // File học sinh nộp
+            $studentFiles = DB::table('mdl_files')
+                ->join('mdl_assignsubmission_file', 'mdl_files.itemid', '=', 'mdl_assignsubmission_file.id')
+                ->where('mdl_assignsubmission_file.submission', $submission->id)
+                ->where('mdl_files.component', 'assignsubmission_file')
+                ->where('mdl_files.filesize', '>', 0)
+                ->select('mdl_files.filename', 'mdl_files.filepath', 'mdl_files.contenthash')
+                ->get();
+        }
+    
+        // File giáo viên đính kèm (instruction file)
+        $teacherFiles = DB::table('mdl_files')
+            ->where('component', 'mod_assign')
+            ->where('filearea', 'intro')
+            ->where('itemid', $assignment->id)
+            ->where('filesize', '>', 0)
+            ->select('filename', 'filepath', 'contenthash')
+            ->get();
+    
+        return response()->json([
+            'code' => 200,
+            'message' => 'Chi tiết bài tự luận',
+            'assignment' => [
+                'id' => $assignment->id,
+                'name' => $assignment->name,
+                'course' => $assignment->course,
+                'duedate' => $assignment->duedate,
+                'section' => $assignment->section,
+                'section_name' => $assignment->section_name,
+                'status' => $status,
+                'onlinetext' => $onlinetext,
+                'student_files' => $studentFiles,
+                'teacher_files' => $teacherFiles
+            ]
+        ]);
+    }
 }
