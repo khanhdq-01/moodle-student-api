@@ -59,6 +59,12 @@ class CourseRepository implements CourseRepositoryInterface
             ->leftJoin('mdl_course_categories as cc', 'cc.id', '=', 'c.category')
             ->join('mdl_enrol as e', 'e.courseid', '=', 'c.id')
             ->join('mdl_user_enrolments as ue', 'ue.enrolid', '=', 'e.id')
+            ->leftJoin('mdl_files as f', function ($join) {
+                $join->on('f.contextid', '=', 'ctx.id')
+                    ->where('f.component', '=', 'course')
+                    ->where('f.filearea', '=', 'overviewfiles')
+                    ->where('f.filename', '!=', '.'); // Bỏ file rỗng
+            })
             ->where('ue.userid', '=', $studentId)
             ->select(
                 'c.id as course_id',
@@ -69,68 +75,95 @@ class CourseRepository implements CourseRepositoryInterface
                 DB::raw('(SELECT COUNT(*) FROM mdl_user_enrolments ue2 
                       JOIN mdl_enrol e2 ON ue2.enrolid = e2.id WHERE e2.courseid = c.id) AS student_count'),
                 DB::raw('GROUP_CONCAT(DISTINCT CONCAT(u.firstname, " ", u.lastname, " (Giáo viên)") SEPARATOR ", ") AS teachers'),
-                DB::raw('GROUP_CONCAT(DISTINCT CONCAT(a.firstname, " ", a.lastname, " (Trợ giảng)") SEPARATOR ", ") AS assistants')
+                DB::raw('GROUP_CONCAT(DISTINCT CONCAT(a.firstname, " ", a.lastname, " (Trợ giảng)") SEPARATOR ", ") AS assistants'),
+                'f.filename as image_name',
+                'f.contenthash as image_contenthash'
             )
-            ->groupBy('c.id', 'c.fullname', 'c.summary', 'cc.name')
+            ->groupBy('c.id', 'c.fullname', 'c.summary', 'cc.name', 'f.filename', 'f.contenthash')
             ->get();
     }
-
+    
     public function getDetailCoursesForStudent($courseId, $studentId)
     {
-
-        return DB::table('mdl_course as c')
-            ->join('mdl_course_sections as cs', 'cs.course', '=', 'c.id')
-            ->join('mdl_course_modules as cm', 'cm.section', '=', 'cs.id')
-            ->join('mdl_modules as m', 'm.id', '=', 'cm.module')
-            ->leftJoin('mdl_user_enrolments as ue', 'ue.userid', '=', 'ue.userid')
-            ->leftJoin('mdl_enrol as e', function ($join) use ($studentId) {
-                $join->on('e.id', '=', 'ue.enrolid')
-                    ->on('e.courseid', '=', 'c.id');
+        // === Lấy ảnh môn học ===
+        $courseImage = DB::table('mdl_context as ctx')
+            ->join('mdl_files as f', 'f.contextid', '=', 'ctx.id')
+            ->where('ctx.instanceid', $courseId)
+            ->where('ctx.contextlevel', 50)
+            ->where('f.component', 'course')
+            ->where('f.filearea', 'overviewfiles')
+            ->where('f.filename', '<>', '.')
+            ->select('f.filename', 'f.contenthash')
+            ->first();
+    
+        // === Lấy unilabel (intro + lecture), section, module ===
+        $unilabels = DB::table('mdl_unilabel as ul')
+            ->leftJoin('mdl_unilabeltype_courseintro as ci', function ($join) {
+                $join->on('ci.unilabelid', '=', 'ul.id')
+                    ->where('ul.unilabeltype', '=', 'courseintro');
             })
-            ->leftJoin('mdl_resource as r', function ($join) {
-                $join->on('r.id', '=', 'cm.instance')
-                    ->where('m.name', '=', 'resource'); // Tài liệu
+            ->leftJoin('mdl_unilabeltype_lecture as lec', function ($join) {
+                $join->on('lec.unilabelid', '=', 'ul.id')
+                    ->where('ul.unilabeltype', '=', 'lecture');
             })
-            ->leftJoin('mdl_page as p', function ($join) {
-                $join->on('p.id', '=', 'cm.instance')
-                    ->where('m.name', '=', 'page'); // Trang bài giảng
+            ->join('mdl_course_modules as cm', function ($join) {
+                $join->on('cm.instance', '=', 'ul.id')
+                    ->whereRaw("cm.module = (SELECT id FROM mdl_modules WHERE name = 'unilabel' LIMIT 1)");
             })
-            ->leftJoin('mdl_assign as a', function ($join) {
-                $join->on('a.id', '=', 'cm.instance')
-                    ->where('m.name', '=', 'assign'); // Bài tập
-            })
-            ->leftJoin('mdl_quiz as q', function ($join) {
-                $join->on('q.id', '=', 'cm.instance')
-                    ->where('m.name', '=', 'quiz'); // Bài trắc nghiệm
-            })
-            ->leftJoin('mdl_bigbluebuttonbn as bbb', function ($join) {
-                $join->on('bbb.id', '=', 'cm.instance')
-                    ->where('m.name', '=', 'bigbluebuttonbn'); // Buổi học online
-            })
+            ->join('mdl_modules as md', 'cm.module', '=', 'md.id')
+            ->join('mdl_course_sections as cs', 'cs.id', '=', 'cm.section')
+            ->where('ul.course', $courseId)
             ->select(
-                'c.id as course_id',
-                'c.fullname as course_name',
+                'ul.id as unilabel_id',
+                'ul.name as unilabel_name',
+                'ul.intro as unilabel_intro',
+                'ul.unilabeltype',
+                'cs.id as section_id',
                 'cs.name as section_name',
-                'cs.sequence as sequence',
-                'm.name as module_type',
-                DB::raw('CASE 
-                        WHEN m.name = "resource" THEN r.name
-                        WHEN m.name = "page" THEN p.name
-                        WHEN m.name = "assign" THEN a.name
-                        WHEN m.name = "quiz" THEN q.name
-                        WHEN m.name = "bigbluebuttonbn" THEN bbb.name
-                     END as activity_name'),
-                DB::raw('CASE 
-                        WHEN m.name = "resource" THEN r.intro
-                        WHEN m.name = "page" THEN p.content
-                        WHEN m.name = "assign" THEN a.intro
-                        WHEN m.name = "quiz" THEN q.intro
-                        WHEN m.name = "bigbluebuttonbn" THEN bbb.intro
-                     END as activity_details')
+                'md.name as module_name',
+                'lec.content as lecture_content'
             )
-            ->where('c.id', $courseId) // Lọc khóa học cụ thể
-            ->where('ue.userid', $studentId) // Chỉ lấy dữ liệu cho sinh viên đã đăng ký
-            ->orderBy('cs.section') // Thứ tự tuần
+            ->orderBy('cs.section')
             ->get();
+    
+        // === Nhóm kết quả theo section_id ===
+        $grouped = [];
+    
+        foreach ($unilabels as $item) {
+            $sectionId = $item->section_id;
+    
+            if (!isset($grouped[$sectionId])) {
+                $grouped[$sectionId] = [
+                    'section_id' => $sectionId,
+                    'section_name' => $item->section_name,
+                    'module_name' => $item->module_name,
+                    'course_intro' => null,
+                    'lessons' => []
+                ];
+            }
+    
+            if ($item->unilabeltype === 'courseintro') {
+                $grouped[$sectionId]['course_intro'] = [
+                    'unilabel_id' => $item->unilabel_id,
+                    'name' => $item->unilabel_name,
+                    'intro' => $item->unilabel_intro
+                ];
+            } elseif ($item->unilabeltype === 'lecture') {
+                $grouped[$sectionId]['lessons'][] = [
+                    'id' => $item->unilabel_id,
+                    'name' => $item->unilabel_name,
+                    'intro' => $item->unilabel_intro,
+                    'content' => $item->lecture_content
+                ];
+            }
+        }
+    
+        return response()->json([
+            'course_image' => $courseImage ? [
+                'filename' => $courseImage->filename,
+                'contenthash' => $courseImage->contenthash
+            ] : null,
+            'data' => array_values($grouped)
+        ]);
     }
 }

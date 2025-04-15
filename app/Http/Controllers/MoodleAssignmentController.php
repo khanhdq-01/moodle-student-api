@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class MoodleAssignmentController extends Controller
 {
@@ -50,7 +53,7 @@ class MoodleAssignmentController extends Controller
                 'mdl_assign.intro as description',
                 DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_assign.duedate), '%d/%m/%Y') as duedate"),
                 'mdl_course_sections.name as section_name',
-                'mdl_course_modules.section'
+                'mdl_course_modules.section',
             )
             ->get();
     
@@ -196,7 +199,8 @@ class MoodleAssignmentController extends Controller
     {
         $moodleDataPath = 'C:/xampp/moodledata/filedir';
 
-        $filePath = "{$moodleDataPath}/" . substr($contenthash, 0, 2) . "/" . substr($contenthash, 2, 2) . "/{$contenthash}";
+        $subPath = substr($contenthash, 0, 2) . '/' . substr($contenthash, 2, 2) . '/' . $contenthash;
+        $filePath = "{$moodleDataPath}/{$subPath}";
     
         if (!file_exists($filePath)) {
             return response()->json(['message' => 'File not found in Moodle storage'], 404);
@@ -204,17 +208,189 @@ class MoodleAssignmentController extends Controller
     
         // Lấy MIME type từ database
         $file = DB::table('mdl_files')->where('contenthash', $contenthash)->first();
+
+        if (!$file) {
+            return response()->json(['message' => 'File metadata not found'], 404);
+        }
+
         $mimeType = $file->mimetype ?? 'application/octet-stream';
     
         // Trả file về cho client
         $filename = $file->filename ?? 'downloaded_file';
 
         // Trả file về client dưới dạng download
-        return response()->download($filePath, $filename, [
+        return Response::make(file_get_contents($filePath), 200, [
             'Content-Type' => $mimeType,
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => filesize($filePath),
         ]);
     }
-
+    public function uploadFile(Request $request)
+    {
+        // Validate request
+        $request->validate([
+            'file' => 'required|file',
+            'assignment_id' => 'required|integer',
+        ]);
+    
+        $file = $request->file('file');
+        $assignmentId = $request->input('assignment_id');
+        $userId = auth()->id() ?? 0;
+    
+        // 1. Lấy hoặc tạo submission
+        $submission = DB::table('mdl_assign_submission')
+            ->where('assignment', $assignmentId)
+            ->where('userid', $userId)
+            ->where('latest', 1)
+            ->first();
+    
+        if (!$submission) {
+            $submissionId = DB::table('mdl_assign_submission')->insertGetId([
+                'assignment' => $assignmentId,
+                'userid' => $userId,
+                'status' => 'new',
+                'timemodified' => time(),
+                'timecreated' => time(),
+                'latest' => 1,
+                'groupid' => 0,
+                'attemptnumber' => 0,
+            ]);
+        } else {
+            $submissionId = $submission->id;
+        }
+    
+        // Log submission info
+        \Log::info('Submission info:', [
+            'submission_id' => $submissionId,
+            'assignment_id' => $assignmentId,
+            'user_id' => $userId,
+        ]);
+    
+        // 2. Lấy contextid của bài tập
+        $context = DB::table('mdl_course_modules as cm')
+            ->join('mdl_context as ctx', 'ctx.instanceid', '=', 'cm.id')
+            ->join('mdl_assign as a', 'a.id', '=', 'cm.instance')
+            ->where('a.id', $assignmentId)
+            ->where('ctx.contextlevel', 70)
+            ->select('ctx.id as context_id')
+            ->first();
+    
+        if (!$context) {
+            \Log::error('Context not found for assignment:', ['assignment_id' => $assignmentId]);
+            return response()->json(['message' => 'Context not found'], 404);
+        }
+    
+        $contextId = $context->context_id;
+    
+        // Log context info
+        \Log::info('Context info:', ['context_id' => $contextId]);
+    
+        // 3. Lưu file vào thư mục moodledata
+        $fileContent = file_get_contents($file);
+        $contenthash = sha1($fileContent);
+        $moodleDataPath = 'C:/xampp/moodledata/filedir';
+        $subfolder1 = substr($contenthash, 0, 2);
+        $subfolder2 = substr($contenthash, 2, 2);
+        $storagePath = "$moodleDataPath/$subfolder1/$subfolder2";
+    
+        if (!file_exists($storagePath)) {
+            mkdir($storagePath, 0777, true);
+        }
+    
+        $storedPath = "$storagePath/$contenthash";
+        if (!file_exists($storedPath)) {
+            file_put_contents($storedPath, $fileContent);
+        }
+    
+        $filename = trim($file->getClientOriginalName()); // Loại bỏ khoảng trắng
+        $filepath = '/'; // Khởi tạo filepath
+    
+        // 4. Kiểm tra và xử lý file trùng lặp
+        $existingFile = DB::table('mdl_files')->where([
+            ['contextid', '=', $contextId],
+            ['component', '=', 'assignsubmission_file'],
+            ['filearea', '=', 'submission_files'],
+            ['itemid', '=', $submissionId],
+            ['filepath', '=', $filepath],
+            ['filename', '=', $filename],
+        ])->first();
+    
+        \Log::info('Check for existing file:', [
+            'contextid' => $contextId,
+            'itemid' => $submissionId,
+            'filename' => $filename,
+            'filepath' => $filepath,
+            'found' => $existingFile ? 'Yes' : 'No',
+            'existing_file_id' => $existingFile ? $existingFile->id : null,
+        ]);
+    
+        if ($existingFile) {
+            \Log::info('Updating existing file:', ['file_id' => $existingFile->id]);
+            DB::table('mdl_files')->where('id', $existingFile->id)->update([
+                'contenthash' => $contenthash,
+                'filesize' => $file->getSize(),
+                'mimetype' => $file->getMimeType(),
+                'timemodified' => time(),
+            ]);
+            return response()->json(['message' => 'File updated successfully'], 200);
+        }
+    
+        // 5. Chèn bản ghi mới vào mdl_files
+        try {
+            DB::table('mdl_files')->insert([
+                'contenthash' => $contenthash,
+                'pathnamehash' => sha1($filepath . $filename), // Thêm pathnamehash
+                'filename' => $filename,
+                'filepath' => $filepath,
+                'filesize' => $file->getSize(),
+                'mimetype' => $file->getMimeType(),
+                'timecreated' => time(),
+                'timemodified' => time(),
+                'userid' => $userId,
+                'component' => 'assignsubmission_file',
+                'filearea' => 'submission_files',
+                'itemid' => $submissionId,
+                'contextid' => $contextId,
+                'status' => 0, // Thêm status mặc định
+                'source' => null, // Nguồn file (có thể để null)
+                'author' => null, // Tác giả (có thể để null)
+                'license' => null, // Giấy phép (có thể để null)
+                'sortorder' => 0, // Thứ tự sắp xếp
+            ]);
+            return response()->json(['message' => 'File uploaded successfully'], 200);
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Log::error('Database error:', [
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+                'contextid' => $contextId,
+                'itemid' => $submissionId,
+                'filename' => $filename,
+                'filepath' => $filepath,
+            ]);
+    
+            if ($e->getCode() == 23000) {
+                // Thử tìm bản ghi trùng lặp
+                $duplicateFile = DB::table('mdl_files')->where([
+                    ['contextid', '=', $contextId],
+                    ['component', '=', 'assignsubmission_file'],
+                    ['filearea', '=', 'submission_files'],
+                    ['itemid', '=', $submissionId],
+                    ['filepath', '=', $filepath],
+                    ['filename', '=', $filename],
+                ])->first();
+    
+                \Log::error('Duplicate file detected:', [
+                    'duplicate_file_id' => $duplicateFile ? $duplicateFile->id : null,
+                    'duplicate_file_details' => $duplicateFile ? (array)$duplicateFile : null,
+                ]);
+    
+                return response()->json(['message' => 'File already exists'], 409);
+            }
+    
+            throw $e;
+        }
+    }
+    
     public function submitAssignment(Request $request)
     {
         $user = $request->user();
@@ -345,7 +521,8 @@ class MoodleAssignmentController extends Controller
                 DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeopen), '%d/%m/%Y') as open_time"),
                 DB::raw("DATE_FORMAT(FROM_UNIXTIME(mdl_quiz.timeclose), '%d/%m/%Y') as close_time"),
                 'mdl_course_modules.section',
-                'mdl_course_sections.name as section_name'
+                'mdl_course_sections.name as section_name',
+                DB::raw("ROUND(mdl_quiz.grade, 2) as grade")
             )
             ->get();
 

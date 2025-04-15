@@ -55,6 +55,7 @@ Route::middleware(['auth:sanctum', 'student'])->group(function () {
     Route::get('/assign-detail/{id}', [MoodleAssignmentController::class, 'getAssignmentsDetail']);//lấy chi tiết bài tập tự luận theo id bài tập
    
     Route::get('/download/{contenthash}', [MoodleAssignmentController::class, 'getFile']);  //download file đã nộp
+    Route::post('/upload-file', [MoodleAssignmentController::class, 'uploadFile']); //upload file bài tập
     Route::post('/submit-assignment', [MoodleAssignmentController::class, 'submitAssignment']);//submit bài tập
 
     //lấy điểm 

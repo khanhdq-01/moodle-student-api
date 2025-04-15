@@ -42,7 +42,6 @@ class CourseService
     public function getDetailCoursesForStudent($courseId, $studentId)
     {
         $courses = $this->courseRepository->getDetailCoursesForStudent($courseId, $studentId);
-        dd($courses);
         return $courses;
     }
 }
