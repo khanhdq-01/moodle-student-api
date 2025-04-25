@@ -121,6 +121,7 @@ class CourseRepository implements CourseRepositoryInterface
                 'cs.id as section_id',
                 'cs.name as section_name',
                 'md.name as module_name',
+                'ul.unilabeltype as unilabel_type',
                 'lec.content as lecture_content'
             )
             ->orderBy('cs.section')
@@ -137,6 +138,7 @@ class CourseRepository implements CourseRepositoryInterface
                     'section_id' => $sectionId,
                     'section_name' => $item->section_name,
                     'module_name' => $item->module_name,
+                    'unilabel_type' => $item->unilabel_type,
                     'course_intro' => null,
                     'lessons' => []
                 ];

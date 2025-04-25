@@ -3,27 +3,31 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Interfaces\LanguageRepositoryInterface;
 
 class LanguageService
 {
-    public function updateLanguage(User $user, string $language): array
+    protected $languageRepo;
+
+    public function __construct(LanguageRepositoryInterface $languageRepo)
     {
-        // Kiểm tra ngôn ngữ có hợp lệ không
-        if (!User::isValidLanguage($language)) {
+        $this->languageRepo = $languageRepo;
+    }
+
+    public function updateLanguage(User $user, string $lang): array
+    {
+        $success = $this->languageRepo->updateUserLanguage($user, $lang);
+
+        if ($success) {
             return [
-                'success' => false,
-                'code' => 400,
-                'message' => 'Ngôn ngữ không được hỗ trợ.',
+                'code' => 200,
+                'message' => 'Cập nhật ngôn ngữ thành công.',
             ];
         }
 
-        // Cập nhật ngôn ngữ của người dùng
-        $user->update(['lang' => $language]);
-
         return [
-            'success' => true,
-            'code' => 200,
-            'message' => 'Cập nhật ngôn ngữ thành công.',
+            'code' => 500,
+            'message' => 'Cập nhật ngôn ngữ thất bại.',
         ];
     }
 }
